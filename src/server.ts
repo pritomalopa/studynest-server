@@ -1,0 +1,16 @@
+import dotenv from "dotenv";
+dotenv.config();
+
+import app from "./app";
+import { connectDB } from "./config/db";
+
+const PORT = process.env.PORT || 5000;
+
+const startServer = async () => {
+  await connectDB();
+  app.listen(PORT, () => {
+    console.log(`StudyNest API running on port ${PORT} [${process.env.NODE_ENV || "development"}]`);
+  });
+};
+
+startServer();
