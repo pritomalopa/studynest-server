@@ -36,10 +36,10 @@ const authLimiter = rateLimit({
   },
 });
 
-app.get("/", (req, res) => {
+app.get("/", (_req, res) => {
   res.json({ message: "StudyNest API is running." });
 });
-app.get("/api/health", (req, res) => {
+app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 

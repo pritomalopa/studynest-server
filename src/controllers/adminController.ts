@@ -6,7 +6,7 @@ import Booking from "../models/Booking";
 import { asyncHandler } from "../utils/asyncHandler";
 
 // @route GET /api/admin/stats
-export const getStats = asyncHandler(async (req, res: Response) => {
+export const getStats = asyncHandler(async (_req, res: Response) => {
   const [totalUsers, totalTutors, totalResources, totalGroups, totalBookings] =
     await Promise.all([
       User.countDocuments(),
@@ -42,7 +42,7 @@ export const getStats = asyncHandler(async (req, res: Response) => {
 });
 
 // @route GET /api/admin/resources  (all resources, for moderation table)
-export const getAllResourcesAdmin = asyncHandler(async (req, res: Response) => {
+export const getAllResourcesAdmin = asyncHandler(async (_req, res: Response) => {
   const resources = await Resource.find()
     .populate("uploader", "name email")
     .sort({ createdAt: -1 });
@@ -50,7 +50,7 @@ export const getAllResourcesAdmin = asyncHandler(async (req, res: Response) => {
 });
 
 // @route GET /api/admin/users
-export const getAllUsers = asyncHandler(async (req, res: Response) => {
+export const getAllUsers = asyncHandler(async (_req, res: Response) => {
   const users = await User.find().select("-password").sort({ createdAt: -1 });
   res.status(200).json(users);
 });

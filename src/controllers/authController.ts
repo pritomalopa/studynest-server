@@ -109,7 +109,7 @@ export const googleLogin = asyncHandler(async (req, res: Response) => {
 });
 
 // @route POST /api/auth/logout
-export const logoutUser = asyncHandler(async (req, res: Response) => {
+export const logoutUser = asyncHandler(async (_req, res: Response) => {
   res.clearCookie("token", COOKIE_OPTIONS);
   res.status(200).json({ success: true, data: { message: "Logged out successfully." } });
 });
