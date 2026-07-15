@@ -6,7 +6,7 @@ export const validate = (schema: ZodSchema) => {
     const result = schema.safeParse(req.body);
 
     if (!result.success) {
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         message: "Validation failed",
         errors: result.error.issues.map((issue) => ({
@@ -14,6 +14,7 @@ export const validate = (schema: ZodSchema) => {
           message: issue.message,
         })),
       });
+      return;
     }
 
     req.body = result.data;
