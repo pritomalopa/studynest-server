@@ -1,32 +1,32 @@
 import { Response } from "express";
-import StudyGroup from "../models/StudyGroup";
 import { asyncHandler } from "../utils/asyncHandler";
 import { AuthRequest } from "../types";
+import {
+  createStudyGroupService,
+  getStudyGroupByIdService,
+  getStudyGroupsService,
+  joinStudyGroupService,
+  leaveStudyGroupService,
+} from "../services/studyGroup.service";
+import { toSafeString } from "../utils/sanitize";
 
 // @route GET /api/study-groups
 export const getStudyGroups = asyncHandler(async (req, res: Response) => {
-  const { subject, search } = req.query as Record<string, string>;
-  const query: Record<string, any> = {};
-  if (subject) query.subject = subject;
-  if (search) query.name = { $regex: search, $options: "i" };
+  const subject = toSafeString(req.query.subject);
+  const search = toSafeString(req.query.search);
+  const groups = await getStudyGroupsService(subject, search);
 
-  const groups = await StudyGroup.find(query)
-    .populate("creator", "name avatarUrl")
-    .sort({ createdAt: -1 });
-
-  res.status(200).json(groups);
+  res.status(200).json({ success: true, data: groups });
 });
 
 // @route GET /api/study-groups/:id
 export const getStudyGroupById = asyncHandler(async (req, res: Response) => {
-  const group = await StudyGroup.findById(req.params.id)
-    .populate("creator", "name avatarUrl university")
-    .populate("members", "name avatarUrl");
+  const group = await getStudyGroupByIdService(req.params.id);
   if (!group) {
     res.status(404);
     throw new Error("Study group not found.");
   }
-  res.status(200).json(group);
+  res.status(200).json({ success: true, data: group });
 });
 
 // @route POST /api/study-groups
@@ -37,52 +37,36 @@ export const createStudyGroup = asyncHandler(async (req: AuthRequest, res: Respo
     throw new Error("Please fill in all required fields.");
   }
 
-  const group = await StudyGroup.create({
-    name,
-    subject,
-    description,
-    coverImageUrl:
-      coverImageUrl ||
-      "https://images.pexels.com/photos/1181533/pexels-photo-1181533.jpeg",
-    meetingSchedule,
-    creator: req.user?.id,
-    members: [req.user?.id],
-  });
+  const group = await createStudyGroupService(
+    { name, subject, description, coverImageUrl, meetingSchedule },
+    req.user?.id as string
+  );
 
-  res.status(201).json(group);
+  res.status(201).json({ success: true, data: group });
 });
 
 // @route POST /api/study-groups/:id/join
 export const joinStudyGroup = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const group = await StudyGroup.findById(req.params.id);
-  if (!group) {
+  const result = await joinStudyGroupService(req.params.id, req.user?.id as string);
+  if (!result) {
     res.status(404);
     throw new Error("Study group not found.");
   }
-
-  const userId = req.user?.id as string;
-  if (group.members.some((m) => m.toString() === userId)) {
+  if (result.alreadyMember) {
     res.status(400);
     throw new Error("You're already a member of this group.");
   }
 
-  group.members.push(userId as any);
-  await group.save();
-
-  res.status(200).json({ message: "Joined the group successfully." });
+  res.status(200).json({ success: true, data: { message: "Joined the group successfully." } });
 });
 
 // @route POST /api/study-groups/:id/leave
 export const leaveStudyGroup = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const group = await StudyGroup.findById(req.params.id);
+  const group = await leaveStudyGroupService(req.params.id, req.user?.id as string);
   if (!group) {
     res.status(404);
     throw new Error("Study group not found.");
   }
 
-  const userId = req.user?.id as string;
-  group.members = group.members.filter((m) => m.toString() !== userId) as any;
-  await group.save();
-
-  res.status(200).json({ message: "Left the group." });
+  res.status(200).json({ success: true, data: { message: "Left the group." } });
 });

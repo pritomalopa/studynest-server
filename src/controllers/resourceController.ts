@@ -1,88 +1,55 @@
 import { Response } from "express";
-import Resource from "../models/Resource";
-import Review from "../models/Review";
 import { asyncHandler } from "../utils/asyncHandler";
 import { AuthRequest } from "../types";
+import {
+  addReviewService,
+  createResourceService,
+  deleteResourceService,
+  getMyResourcesService,
+  getResourceByIdService,
+  getResourcesService,
+} from "../services/resource.service";
+import { toSafeString } from "../utils/sanitize";
 
 // @route GET /api/resources
 // Supports: search, subject filter, priceType filter, resourceType filter, sort, pagination
 export const getResources = asyncHandler(async (req, res: Response) => {
-  const {
-    search,
-    subject,
-    priceType,
-    resourceType,
-    sort = "newest",
-    page = "1",
-    limit = "12",
-  } = req.query as Record<string, string>;
+  const rawSearch = toSafeString(req.query.search);
+  const rawSubject = toSafeString(req.query.subject);
+  const rawPriceType = toSafeString(req.query.priceType);
+  const rawResourceType = toSafeString(req.query.resourceType);
+  const rawSort = toSafeString(req.query.sort);
+  const rawPage = toSafeString(req.query.page);
+  const rawLimit = toSafeString(req.query.limit);
 
-  const query: Record<string, any> = {};
-
-  if (search) {
-    query.$text = { $search: search };
-  }
-  if (subject) query.subject = subject;
-  if (priceType) query.priceType = priceType;
-  if (resourceType) query.resourceType = resourceType;
-
-  const sortMap: Record<string, Record<string, 1 | -1>> = {
-    newest: { createdAt: -1 },
-    rating: { avgRating: -1 },
-    popular: { downloadCount: -1 },
-  };
-  const sortBy = sortMap[sort] || sortMap.newest;
-
-  const pageNum = Math.max(parseInt(page, 10) || 1, 1);
-  const limitNum = Math.max(parseInt(limit, 10) || 12, 1);
-  const skip = (pageNum - 1) * limitNum;
-
-  const [data, totalResults] = await Promise.all([
-    Resource.find(query)
-      .populate("uploader", "name avatarUrl")
-      .sort(sortBy)
-      .skip(skip)
-      .limit(limitNum),
-    Resource.countDocuments(query),
-  ]);
-
-  res.status(200).json({
-    data,
-    page: pageNum,
-    totalPages: Math.ceil(totalResults / limitNum) || 1,
-    totalResults,
+  const payload = await getResourcesService({
+    search: rawSearch,
+    subject: rawSubject,
+    priceType: rawPriceType,
+    resourceType: rawResourceType,
+    sort: rawSort,
+    page: rawPage,
+    limit: rawLimit,
   });
+
+  res.status(200).json({ success: true, data: payload });
 });
 
 // @route GET /api/resources/:id
 export const getResourceById = asyncHandler(async (req, res: Response) => {
-  const resource = await Resource.findById(req.params.id).populate(
-    "uploader",
-    "name avatarUrl university"
-  );
-  if (!resource) {
+  const payload = await getResourceByIdService(req.params.id);
+  if (!payload) {
     res.status(404);
     throw new Error("Resource not found.");
   }
 
-  const related = await Resource.find({
-    subject: resource.subject,
-    _id: { $ne: resource._id },
-  })
-    .limit(4)
-    .select("title coverImageUrl subject priceType price avgRating");
-
-  const reviews = await Review.find({ resource: resource._id })
-    .populate("user", "name avatarUrl")
-    .sort({ createdAt: -1 });
-
-  res.status(200).json({ resource, related, reviews });
+  res.status(200).json({ success: true, data: payload });
 });
 
 // @route GET /api/resources/mine
 export const getMyResources = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const resources = await Resource.find({ uploader: req.user?.id }).sort({ createdAt: -1 });
-  res.status(200).json(resources);
+  const resources = await getMyResourcesService(req.user?.id as string);
+  res.status(200).json({ success: true, data: resources });
 });
 
 // @route POST /api/resources
@@ -104,27 +71,27 @@ export const createResource = asyncHandler(async (req: AuthRequest, res: Respons
     throw new Error("Please fill in all required fields.");
   }
 
-  const resource = await Resource.create({
-    title,
-    shortDescription,
-    fullDescription,
-    subject,
-    resourceType,
-    priceType: priceType || "free",
-    price: priceType === "paid" ? Number(price) || 0 : 0,
-    coverImageUrl:
-      coverImageUrl ||
-      "https://images.pexels.com/photos/1516339/pexels-photo-1516339.jpeg",
-    fileUrl,
-    uploader: req.user?.id,
-  });
+  const resource = await createResourceService(
+    {
+      title,
+      shortDescription,
+      fullDescription,
+      subject,
+      resourceType,
+      priceType,
+      price,
+      coverImageUrl,
+      fileUrl,
+    },
+    req.user?.id as string
+  );
 
-  res.status(201).json(resource);
+  res.status(201).json({ success: true, data: resource });
 });
 
 // @route DELETE /api/resources/:id
 export const deleteResource = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const resource = await Resource.findById(req.params.id);
+  const resource = await deleteResourceService(req.params.id);
   if (!resource) {
     res.status(404);
     throw new Error("Resource not found.");
@@ -137,43 +104,21 @@ export const deleteResource = asyncHandler(async (req: AuthRequest, res: Respons
     throw new Error("You can only delete your own resources.");
   }
 
-  await resource.deleteOne();
-  await Review.deleteMany({ resource: resource._id });
-
-  res.status(200).json({ message: "Resource deleted successfully." });
+  res.status(200).json({ success: true, data: { message: "Resource deleted successfully." } });
 });
 
 // @route POST /api/resources/:id/reviews
 export const addReview = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { rating, comment } = req.body;
-  const resource = await Resource.findById(req.params.id);
-  if (!resource) {
+  const result = await addReviewService(req.params.id, req.user?.id as string, { rating, comment });
+  if (!result) {
     res.status(404);
     throw new Error("Resource not found.");
   }
-  if (!rating || !comment) {
-    res.status(400);
-    throw new Error("Rating and comment are required.");
-  }
-
-  const existing = await Review.findOne({ resource: resource._id, user: req.user?.id });
-  if (existing) {
+  if (result.existing) {
     res.status(400);
     throw new Error("You've already reviewed this resource.");
   }
 
-  await Review.create({
-    resource: resource._id,
-    user: req.user?.id,
-    rating,
-    comment,
-  });
-
-  const reviews = await Review.find({ resource: resource._id });
-  resource.reviewCount = reviews.length;
-  resource.avgRating =
-    reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
-  await resource.save();
-
-  res.status(201).json({ message: "Review added." });
+  res.status(201).json({ success: true, data: { message: "Review added." } });
 });

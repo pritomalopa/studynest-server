@@ -1,6 +1,9 @@
 import express, { Application } from "express";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import mongoSanitize from "express-mongo-sanitize";
 
 import authRoutes from "./routes/authRoutes";
 import resourceRoutes from "./routes/resourceRoutes";
@@ -17,8 +20,21 @@ app.use(
     credentials: true,
   })
 );
+app.use(helmet());
 app.use(express.json());
+app.use(mongoSanitize());
 app.use(cookieParser());
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Too many authentication attempts. Please try again in 15 minutes.",
+  },
+});
 
 app.get("/", (req, res) => {
   res.json({ message: "StudyNest API is running." });
@@ -27,7 +43,7 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-app.use("/api/auth", authRoutes);
+app.use("/api/auth", authLimiter, authRoutes);
 app.use("/api/resources", resourceRoutes);
 app.use("/api/study-groups", studyGroupRoutes);
 app.use("/api/tutors", tutorRoutes);
