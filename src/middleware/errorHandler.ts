@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 
-export const notFound = (req: Request, res: Response, next: NextFunction) => {
+export const notFound = (req: Request, res: Response, next: NextFunction): void => {
   res.status(404);
   next(new Error(`Route not found: ${req.originalUrl}`));
 };
@@ -8,10 +8,10 @@ export const notFound = (req: Request, res: Response, next: NextFunction) => {
 // Centralized error handler — keeps controllers free of repeated try/catch response logic
 export const errorHandler = (
   err: any,
-  req: Request,
+  _req: Request,
   res: Response,
-  next: NextFunction
-) => {
+  _next: NextFunction
+): void => {
   let statusCode = res.statusCode === 200 ? 500 : res.statusCode;
   let message = err.message || "Something went wrong on the server.";
 

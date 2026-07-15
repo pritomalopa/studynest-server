@@ -2,7 +2,6 @@ import bcrypt from "bcryptjs";
 import User from "../models/User";
 import { generateToken } from "../utils/generateToken";
 import { getFirebaseAdmin } from "../config/firebase";
-import { UserRole } from "../types";
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
